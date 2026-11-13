@@ -1,0 +1,18 @@
+labels:
+  trigger: ai-ready
+  in_progress: ai-in-progress
+  failed: ai-failed
+  review: ai-review
+
+agent:
+  max_attempts: 3
+  work_dir: C:/agent_work/runs
+
+models:
+  default:
+    provider: ollama
+    name: qwen2.5-coder:3b
+  check_issue: {}
+  write_spec: {}
+  write_code: {}
+  fix_code: {}
