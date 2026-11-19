@@ -1,93 +1,221 @@
-# ticket-to-mr-agent
+# Ticket to MR Agent
 
+An AI-assisted GitLab agent that turns a labeled issue into a draft merge request. It validates the issue, creates an implementation plan, writes code in an isolated workspace, runs tests, attempts fixes, and opens a merge request through the GitLab API.
 
+## How It Works
 
-## Getting started
+1. Create or update a GitLab issue and add the `ai-ready` label.
+2. GitLab sends an issue webhook to the Flask server.
+3. The agent checks whether the issue contains enough information.
+4. It posts an implementation plan to the issue.
+5. It clones the project into an isolated workspace and asks the configured model to write code.
+6. The project test suite is run. Failed changes can be sent back to the model for up to three configured fix attempts.
+7. If tests pass, the agent pushes an `ai/issue-<iid>` branch and creates a draft merge request.
+8. Issue labels are updated to show `ai-in-progress`, `ai-review`, or `ai-failed` status.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Features
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- GitLab issue webhook integration with secret-token validation
+- AI issue-quality checks before implementation starts
+- Generated implementation specifications posted on the issue
+- Isolated Git workspaces for each issue
+- Configurable Ollama models for issue checks, specifications, code generation, and fixes
+- Automatic test execution and fix retries
+- Branch pushing and draft merge request creation
+- Issue comments and label-based status updates
+- Duplicate-run protection for the same issue
 
-## Add your files
+## Requirements
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/ayan84956/ticket-to-mr-agent.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-* [Set up project integrations](https://gitlab.com/ayan84956/ticket-to-mr-agent/-/settings/integrations)
-
-## Collaborate with your team
-
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- Python 3.10 or newer
+- Git
+- A GitLab personal or project access token
+- A running [Ollama](https://ollama.com/) server
+- An Ollama model that is suitable for code generation
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+
+Clone the repository:
+
+```bash
+git clone https://github.com/ayan84956-source/ticket-to-mr-agent.git
+cd ticket-to-mr-agent
+```
+
+Create a virtual environment and install dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+On Windows:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+Pull the default model and start Ollama:
+
+```bash
+ollama pull qwen2.5-coder:3b
+ollama serve
+```
+
+## Configuration
+
+Copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Configure the environment variables:
+
+```dotenv
+GITLAB_URL=https://gitlab.com
+GITLAB_TOKEN=your-gitlab-access-token
+WEBHOOK_SECRET=a-long-random-secret
+OLLAMA_URL=http://localhost:11434
+CLOUD_API_KEY=optional-cloud-provider-key
+```
+
+Keep `.env` private and never commit real credentials.
+
+The behavior and model settings are controlled by `config.yaml`:
+
+```yaml
+labels:
+  trigger: ai-ready
+  in_progress: ai-in-progress
+  failed: ai-failed
+  review: ai-review
+
+agent:
+  max_attempts: 3
+  work_dir: C:/agent_work/runs
+
+models:
+  default:
+    provider: ollama
+    name: qwen2.5-coder:3b
+  check_issue: {}
+  write_spec: {}
+  write_code: {}
+  fix_code: {}
+```
+
+For individual AI jobs, add provider-specific settings alongside the job name. For example:
+
+```yaml
+write_code:
+  provider: ollama
+  name: qwen2.5-coder:7b
+  temperature: 0.2
+  num_ctx: 8192
+```
+
+Update `agent.work_dir` to a writable absolute path on the machine running the server.
+
+## GitLab Setup
+
+Create the following labels in the target GitLab project:
+
+- `ai-ready` — starts the agent
+- `ai-in-progress` — agent is processing the issue
+- `ai-failed` — processing failed or tests did not pass
+- `ai-review` — a draft merge request was created
+
+The GitLab token needs permission to:
+
+- Read the issue
+- Add comments and manage labels
+- Clone the project
+- Push branches
+- Create merge requests
+
+In GitLab, add a project webhook with:
+
+- URL: the public URL forwarded to `http://127.0.0.1:8000/webhook`
+- Secret token: the value of `WEBHOOK_SECRET`
+- Trigger: **Issues events**
+
+For local development, expose the server with a tool such as Cloudflare Tunnel or ngrok.
+
+## Running the Server
+
+Start the webhook server:
+
+```bash
+python server.py
+```
+
+The service listens on `127.0.0.1:8000` by default.
+
+To start work for an issue manually:
+
+```bash
+python agent.py <project-id> <issue-iid>
+```
+
+For example:
+
+```bash
+python agent.py 123 42
+```
+
+Then add the `ai-ready` label to issue 42 in project 123.
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Write a clear issue containing:
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- The requested behavior
+- Relevant files or components
+- Acceptance criteria
+- Any useful context or constraints
+
+Adding `ai-ready` causes the webhook to run the agent. The issue will receive a comment with the generated plan, test progress or failures, and the draft merge request URL when successful.
+
+If the issue is incomplete, the agent asks for more information and removes the trigger label so it does not repeatedly start.
+
+## Tests
+
+Run the test suite:
+
+```bash
+pytest
+```
+
+The agent determines and runs the test suite inside the target project's cloned workspace.
+
+## Project Structure
+
+```text
+agent.py             Main issue-to-merge-request workflow
+server.py            Flask webhook server
+config.yaml          Labels, retry limits, workspace, and model settings
+ai_steps/            Issue checks, specs, code generation, and fix loops
+core/                GitLab, Git, workspace, model, and test helpers
+prompts/             Prompt templates
+helpers/             Additional utility code
+try_*.py             Development and integration scripts
+```
+
+## Limitations
+
+- The model provider is currently implemented for Ollama; cloud provider support is not yet available.
+- The agent should be reviewed by a human before changes are merged.
+- The quality of generated changes depends on the repository, issue details, test coverage, and selected model.
+- Production deployments should use a secure public endpoint and proper process management.
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Contributions are welcome. Open an issue describing a bug or improvement, then submit a merge request with tests where applicable.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## Project Status
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Active development.
